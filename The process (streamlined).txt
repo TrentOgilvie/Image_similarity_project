@@ -1,0 +1,233 @@
+Intro:
+Project Overview
+The project involves developing a tool to measure and visualize differences between two images using a Siamese network and U-Net architectures. The primary application is to analyze changes in aerial or satellite imagery over time, but it has also been tested on art history images to detect alterations or restorations.
+
+Key Milestones and Progress
+01/20/25
+Challenges: Struggled with implementing a Siamese network into the existing U-Net code. Issues included RAM usage, nomenclature, and minor coding errors.
+
+Potential Applications:
+
+Detecting art forgeries.
+
+Using LiDAR data for archaeological research (Vesuvius challenge).
+
+Research Leads:
+
+Iris Kramer’s work with ArchAI, which uses deep learning to detect archaeological sites using LiDAR and historical maps.
+
+Gizmodo archives for LiDAR data (though difficult to find useful resources).
+
+01/28/25
+Progress:
+
+Successfully implemented a Siamese network to produce a difference mask. However, it only indicates whether images are different, not the degree of difference.
+
+Adjusted the code to make the similarity score less sensitive, resulting in a more accurate measure of structural differences.
+
+Future Directions:
+
+Temporal Change Mapping: Analyze changes over time using multiple snapshots.
+
+Environmental Impact Analysis: Classify changes like deforestation or urbanization.
+
+Ethical concerns regarding the use of AI and aerial imagery in military contexts.
+
+02/03/25
+Ideas for Future Work:
+
+Create a system to identify objects in aerial images (e.g., urban expansion, deforestation).
+
+Develop a slideshow to visualize changes over time.
+
+Explore ethical implications of using AI for object detection in aerial imagery.
+
+Collaborations:
+
+Joel Rivard and Rebecca Bartlett are working on AI for land use mapping and have expressed interest in sharing resources.
+
+02/10/25
+Mid-term Check-in:
+
+Showcased different iterations of the code and explained the progress.
+
+Current focus: Improving the accuracy of the Siamese network’s change measurement.
+
+Next steps:
+
+Identify specific features in aerial images (e.g., urban growth, deforestation).
+
+Create a slideshow to illustrate changes over time.
+
+Areas of Interest:
+
+Urban expansion in cities like Shanghai.
+
+Deforestation in the Amazon.
+
+Open-pit mining.
+
+03/03/25
+Technical Improvements:
+
+Attempted to implement the Siamese network for the predicted change mask instead of non-AI tools.
+
+Explored paradata (metadata about the historical context of the data) to better understand how historians and art historians can benefit from visualizing developmental changes.
+
+Applied the London Charter principles to produce paradata for the project.
+
+Future Ideas:
+
+Implement triplet loss for better similarity detection.
+
+Explore the use of the tool in identifying the origin of human remains in archaeological contexts.
+
+03/17/25
+Next Steps:
+
+Create a step-by-step guide for the code.
+
+Write a detailed blog post explaining the code’s functionality.
+
+Organize the code into a GitHub repository with process documentation.
+
+Technical Details:
+
+The code uses TensorFlow, Matplotlib, and OpenCV for image processing and visualization.
+
+The Siamese network is built on a pre-trained VGG16 model, with additional custom layers for feature extraction and similarity scoring.
+
+Technical Implementation
+Siamese Network Explained
+A Siamese network is a neural network designed to compare two inputs and determine their similarity. Here’s how it works:
+
+Twin Networks: Two identical neural networks process the inputs (e.g., two images).
+
+Feature Extraction: Each network extracts features (e.g., edges, textures) from the input images.
+
+Comparison: The network compares the feature vectors of the two images.
+
+Similarity Score: A score is calculated to indicate how similar the images are.
+
+Difference Map: A visual representation of the differences between the two images is generated.
+
+Code Structure
+Setup:
+
+Installs required libraries (TensorFlow, Matplotlib, OpenCV).
+
+Imports necessary modules (NumPy, Google Colab utilities).
+
+Image Preprocessing:
+
+Resizes and normalizes images.
+
+Training Data Generation:
+
+Creates synthetic image pairs for training (similar and dissimilar pairs).
+
+Feature Extraction Model:
+
+Uses a pre-trained VGG16 model to extract features from images.
+
+Siamese Network Architecture:
+
+Builds a Siamese network using VGG16 and custom layers.
+
+Compares feature vectors using cosine similarity.
+
+Difference Map Generation:
+
+Generates a visual difference map based on feature-level differences.
+
+Main Execution Flow:
+
+Uploads two images, processes them, and calculates the similarity score and difference map.
+
+Challenges and Solutions
+RAM Usage:
+
+Initially, the code crashed due to high RAM usage in Google Colab.
+
+Solution: Reduced image size, split training into smaller batches, and added memory management (e.g., garbage collection).
+
+U-Net vs. Siamese Network:
+
+The U-Net predicted mask was not visually representative of the differences.
+
+Solution: Switched to a Siamese network, which produced a more understandable difference mask.
+
+Similarity Score Sensitivity:
+
+The initial similarity score was too sensitive.
+
+Solution: Adjusted the noise level in training data and focused on cosine similarity instead of Euclidean distance.
+
+Difference Map Quality:
+
+Early versions of the difference map were not detailed enough.
+
+Solution: Extracted feature maps from multiple layers of VGG16 to create a more meaningful difference map.
+
+Applications and Results
+Aerial Imagery
+The tool was tested on urban expansion, deforestation, and mining sites.
+
+It successfully generated difference maps and similarity scores, though further refinement is needed for more detailed outputs.
+
+Art History
+Tested on the infamous "Monkey Jesus" restoration and the comparison between the Louvre and Prado versions of the Mona Lisa.
+
+The difference maps effectively highlighted areas of alteration, demonstrating the tool’s potential for art restoration analysis.
+
+Future Goals
+Triplet Loss Implementation: Improve the Siamese network’s ability to distinguish between similar and dissimilar images.
+
+Detailed Difference Maps: Use the Siamese network’s pixel values to create more accurate and visually appealing difference maps.
+
+Ethical Considerations: Continue exploring the ethical implications of using AI for object detection in aerial imagery.
+
+Code Variations
+Project_V1.0: Initial U-Net implementation for change detection.
+
+Project_V1.01: Added a Siamese network but still used the U-Net mask.
+
+Project_V1.02: Improved the Siamese network but faced RAM issues.
+
+Project_V1.03: Removed the U-Net mask and focused on the Siamese network, achieving better similarity scores.
+
+Project_V1.04: Attempted to use Siamese network pixel values for the difference map but faced RAM issues again.
+
+Project_V1.04.1: Optimized the code for lower RAM usage but still produced unsatisfactory difference maps.
+
+Project_V1.04.2: Improved the difference map by extracting features from multiple VGG16 layers, resulting in a more detailed and meaningful output.
+
+Conclusion
+The project has made significant progress in developing a tool for image comparison and change detection. While challenges remain, particularly in optimizing RAM usage and improving the quality of difference maps, the tool shows promise for applications in environmental monitoring, urban planning, and art history. Future work will focus on refining the Siamese network and exploring ethical considerations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
