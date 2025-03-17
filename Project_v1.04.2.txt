@@ -1,0 +1,358 @@
+# SETUP SECTION: Install required libraries
+# Install dependencies for image processing and deep learning
+!pip install tensorflow matplotlib opencv-python-headless
+
+# Import all necessary libraries
+import numpy as np              # For numerical operations on arrays
+import cv2                      # OpenCV for image processing
+from tensorflow.keras.models import Model  # Keras API for building neural networks
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dense, Flatten, Lambda, BatchNormalization, concatenate
+import tensorflow.keras.backend as K      # Keras backend functions
+from tensorflow.keras.applications import VGG16  # Pre-trained model for transfer learning
+import matplotlib.pyplot as plt  # For visualization
+from google.colab import files   # For file uploads in Google Colab
+import os
+import gc  # Garbage collector to free up memory
+
+# IMAGE PREPROCESSING FUNCTION
+def preprocess_image(image_path, size=(256, 256)):
+    """
+    Loads, resizes, and normalizes an image for the neural network.
+    
+    Args:
+        image_path: Path to the image file
+        size: Target dimensions for the image
+        
+    Returns:
+        Processed image as a normalized numpy array
+    """
+    # Load the image from disk
+    image = cv2.imread(image_path)
+    # Convert from BGR (OpenCV default) to RGB color format
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # Resize to our target dimensions
+    image = cv2.resize(image, size)
+    # Normalize pixel values to range [0,1]
+    image = image / 255.0
+    return image
+
+# TRAINING DATA GENERATION
+def generate_training_data(num_pairs=1000, size=(256, 256)):
+    """
+    Creates synthetic image pairs for training the Siamese network.
+    Generates both similar and dissimilar pairs with labels.
+    
+    Args:
+        num_pairs: Number of image pairs to generate
+        size: Size of generated images
+        
+    Returns:
+        Three arrays: First images, second images, and similarity scores
+    """
+    # Process in batches to reduce memory usage
+    batch_size = 200
+    X1, X2, Y = [], [], []
+
+    for batch in range(0, num_pairs, batch_size):
+        # Calculate actual batch size (might be smaller for last batch)
+        curr_batch_size = min(batch_size, num_pairs - batch)
+
+        # Create temporary batch containers
+        X1_batch, X2_batch, Y_batch = [], [], []
+
+        for i in range(curr_batch_size):
+            # Create random base image
+            base_img = np.random.rand(size[0], size[1], 3)
+
+            if i % 2 == 0:
+                # For even indices: Create SIMILAR pairs
+                # Add small random noise to create a slightly modified version
+                noise = np.random.normal(0, 0.02, size=(size[0], size[1], 3))
+                modified_img = np.clip(base_img + noise, 0, 1)  # Keep values in [0,1]
+                # Assign high similarity score (0.8-1.0)
+                similarity = np.random.uniform(0.8, 1.0)
+            else:
+                # For odd indices: Create DIFFERENT pairs
+                # Create completely different random image
+                modified_img = np.random.rand(size[0], size[1], 3)
+                # Assign low similarity score (0.0-0.2)
+                similarity = np.random.uniform(0.0, 0.2)
+
+            # Add to batch arrays
+            X1_batch.append(base_img)
+            X2_batch.append(modified_img)
+            Y_batch.append(similarity)
+
+        # Add batch to overall arrays
+        X1.extend(X1_batch)
+        X2.extend(X2_batch)
+        Y.extend(Y_batch)
+
+        # Clean up to free memory
+        del X1_batch, X2_batch, Y_batch
+        gc.collect()
+
+    # Convert lists to numpy arrays
+    return np.array(X1), np.array(X2), np.array(Y)
+
+# FEATURE EXTRACTION MODEL
+def create_feature_extraction_model(input_shape=(256, 256, 3)):
+    """
+    Creates a model to extract features from different VGG16 layers.
+    Each layer captures different levels of image characteristics.
+    
+    Args:
+        input_shape: Dimensions of input images
+        
+    Returns:
+        Keras model that outputs features from multiple layers
+    """
+    # Load pre-trained VGG16 model (without the classification layers)
+    base_model = VGG16(weights='imagenet', include_top=False, input_shape=input_shape)
+
+    # Select layers from different depths of the network:
+    layer_outputs = [
+        base_model.get_layer('block1_conv2').output,  # Low-level features (edges, textures)
+        base_model.get_layer('block3_conv3').output,  # Mid-level features (patterns)
+        base_model.get_layer('block5_conv3').output   # High-level features (semantic content)
+    ]
+
+    # Create model with multiple outputs
+    return Model(inputs=base_model.input, outputs=layer_outputs)
+
+# SIAMESE NETWORK ARCHITECTURE
+def siamese_network(input_shape=(256, 256, 3)):
+    """
+    Builds a Siamese neural network for image comparison.
+    Uses the same base network to process both images, then compares results.
+    
+    Args:
+        input_shape: Dimensions of input images
+        
+    Returns:
+        The complete Siamese model and the base network
+    """
+    def create_base_network(input_shape):
+        """
+        Internal function to create the shared feature extraction network.
+        Uses VGG16 with additional layers for fine-tuning.
+        """
+        # Load pre-trained VGG16
+        base_model = VGG16(weights='imagenet', include_top=False, input_shape=input_shape)
+
+        # Make the last 12 layers trainable (fine-tuning)
+        for layer in base_model.layers[-12:]:
+            layer.trainable = True
+
+        # Add custom layers after VGG16 for better feature extraction
+        x = base_model.output
+        x = Conv2D(512, (3, 3), activation='relu', padding='same')(x)  # Additional convolution
+        x = BatchNormalization()(x)  # Normalize activations for stable training
+        x = MaxPooling2D((2, 2))(x)  # Reduce dimensions
+        x = Flatten()(x)  # Convert to 1D vector
+        x = Dense(1024, activation='relu')(x)  # Fully connected layer
+        x = BatchNormalization()(x)  # Another normalization
+        x = Dense(512, activation='relu')(x)  # Final embedding layer
+        return Model(base_model.input, x)
+
+    # Create the shared base network
+    base_network = create_base_network(input_shape)
+
+    # Define two inputs (one for each image)
+    input_a = Input(shape=input_shape)
+    input_b = Input(shape=input_shape)
+
+    # Process both inputs through the SAME network (parameter sharing)
+    processed_a = base_network(input_a)
+    processed_b = base_network(input_b)
+
+    def cosine_similarity(vects):
+        """
+        Computes cosine similarity between feature vectors.
+        1 = identical, 0 = orthogonal, -1 = opposite
+        """
+        x, y = vects
+        # Normalize vectors to unit length
+        x = K.l2_normalize(x, axis=-1)
+        y = K.l2_normalize(y, axis=-1)
+        # Calculate dot product (similarity)
+        return K.sum(x * y, axis=-1, keepdims=True)
+
+    # Compute similarity between the two processed inputs
+    similarity = Lambda(cosine_similarity)([processed_a, processed_b])
+
+    # Build complete model
+    model = Model([input_a, input_b], similarity)
+    # Use mean squared error to compare predicted similarity with actual similarity
+    model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+    return model, base_network
+
+# DIFFERENCE MAP GENERATION
+def generate_feature_difference_map(image1, image2, feature_model, size=(256, 256)):
+    """
+    Creates a detailed difference map highlighting where images differ.
+    Uses features from multiple network layers for comprehensive comparison.
+    
+    Args:
+        image1, image2: The two images to compare
+        feature_model: Model to extract features
+        size: Output dimensions
+        
+    Returns:
+        RGB difference map highlighting various types of differences
+    """
+    # Extract features from both images
+    features1 = feature_model.predict(np.expand_dims(image1, axis=0))
+    features2 = feature_model.predict(np.expand_dims(image2, axis=0))
+
+    # Initialize blank difference map
+    diff_map = np.zeros(size + (3,))
+
+    # Process each feature layer (low, mid, high level)
+    for i, (feat1, feat2) in enumerate(zip(features1, features2)):
+        # Calculate absolute difference between feature maps
+        feat_diff = np.abs(feat1 - feat2)
+
+        # Average across channels to get a single difference map
+        feat_diff_aggregated = np.mean(feat_diff, axis=-1)[0]
+
+        # Resize to original image size
+        feat_diff_resized = cv2.resize(feat_diff_aggregated, size)
+
+        # Normalize values to [0,1] range
+        feat_diff_resized = (feat_diff_resized - feat_diff_resized.min()) / \
+                           (feat_diff_resized.max() - feat_diff_resized.min() + 1e-8)
+
+        # Weight different feature levels differently
+        # Higher level features get more weight (considered more important)
+        weight = [0.2, 0.3, 0.5][i]  
+
+        # Add to composite difference map
+        # Low-level differences go to red channel, mid to green, high to blue
+        diff_map[:, :, i] += feat_diff_resized * weight
+
+    # Normalize each color channel
+    for c in range(3):
+        if diff_map[:, :, c].max() > diff_map[:, :, c].min():
+            diff_map[:, :, c] = (diff_map[:, :, c] - diff_map[:, :, c].min()) / \
+                               (diff_map[:, :, c].max() - diff_map[:, :, c].min())
+
+    return diff_map
+
+# MAIN EXECUTION FLOW
+# Upload images
+print("Please upload the two images (before and after).")
+uploaded_files = files.upload()
+
+# Verify and save uploads
+image_paths = list(uploaded_files.keys())
+if len(image_paths) != 2:
+    raise ValueError("Please upload exactly two images: one for 'before' and one for 'after'.")
+
+# Process uploaded images
+image1 = preprocess_image(image_paths[0])
+image2 = preprocess_image(image_paths[1])
+
+# Create neural network models
+siamese, base_network = siamese_network()
+feature_model = create_feature_extraction_model()
+
+# Generate training data
+print("\nGenerating training data...")
+X1_train, X2_train, Y_train = generate_training_data(num_pairs=1000)
+
+# Train the Siamese network
+print("\nTraining Siamese Network...")
+siamese.fit(
+    [X1_train, X2_train],
+    Y_train,
+    epochs=20,
+    batch_size=32,
+    validation_split=0.2,
+    verbose=1
+)
+
+# Free memory
+del X1_train, X2_train, Y_train
+gc.collect()
+
+# Calculate similarity between the two uploaded images
+similarity_score = siamese.predict([
+    np.expand_dims(image1, axis=0),
+    np.expand_dims(image2, axis=0)
+])[0][0]
+
+# DIFFERENCE VISUALIZATION METHODS
+
+# Method 1: Simple pixel-by-pixel difference
+pixel_diff = np.abs(image1 - image2)
+pixel_diff = (pixel_diff - pixel_diff.min()) / (pixel_diff.max() - pixel_diff.min() + 1e-8)
+
+# Method 2: Feature-based difference map using neural network
+print("\nGenerating detailed difference map based on Siamese network features...")
+feature_diff_map = generate_feature_difference_map(image1, image2, feature_model)
+
+# Create a heatmap by averaging all channels
+heatmap = np.mean(feature_diff_map, axis=-1)
+heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
+
+# VISUALIZATION
+# Display results in a 2x3 grid of images
+plt.figure(figsize=(15, 8))
+
+# Original images
+plt.subplot(2, 3, 1)
+plt.title("Image Before")
+plt.imshow(image1)
+plt.axis('off')
+
+plt.subplot(2, 3, 2)
+plt.title("Image After")
+plt.imshow(image2)
+plt.axis('off')
+
+# Simple pixel difference
+plt.subplot(2, 3, 3)
+plt.title(f"Simple Pixel Difference\nSimilarity Score: {similarity_score:.3f}")
+plt.imshow(np.mean(pixel_diff, axis=-1), cmap='hot')
+plt.colorbar(label='Difference Magnitude')
+plt.axis('off')
+
+# Feature-based difference as RGB image
+plt.subplot(2, 3, 4)
+plt.title("Feature Difference Map (RGB)")
+plt.imshow(feature_diff_map)
+plt.axis('off')
+
+# Feature-based difference as heatmap
+plt.subplot(2, 3, 5)
+plt.title("Feature Difference Heatmap")
+plt.imshow(heatmap, cmap='inferno')
+plt.colorbar(label='Difference Magnitude')
+plt.axis('off')
+
+# Overlay visualization
+plt.subplot(2, 3, 6)
+plt.title("Overlay on Image After")
+overlay = image2.copy()
+# Create mask where differences are significant
+mask = heatmap > 0.5
+# Highlight differences in red
+overlay[mask] = np.array([1.0, 0.0, 0.0])  # Red highlighting
+plt.imshow(overlay)
+plt.axis('off')
+
+plt.tight_layout()
+plt.show()
+
+# Print interpretation guidelines
+print(f"\nSimilarity Score: {similarity_score:.3f}")
+print("Interpretation:")
+print("0.0-0.2: Very Different")
+print("0.2-0.8: Moderately Similar")
+print("0.8-1.0: Very Similar")
+print("\nThe detailed difference map uses Siamese network feature representations to highlight:")
+print("- Red channel: Low-level differences (textures, edges)")
+print("- Green channel: Mid-level differences (patterns, parts)")
+print("- Blue channel: High-level differences (semantic features)")
+print("\nBrighter areas indicate larger differences between the images.")
