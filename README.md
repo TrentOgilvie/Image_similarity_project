@@ -42,15 +42,6 @@ Climate Change Impact: Compare historical and current images of glaciers, coastl
 
 Example: Compare aerial images of a forest from 1990 and 2020 to quantify deforestation.
 
-Repository Contents:
-Code:
-
-image_similarity.ipynb: Google Colab notebook for image comparison.
-
-siamese_network.py: Python script for building and training the Siamese network.
-
-preprocess.py: Script for image preprocessing.
-
 Example Workflow:
 Upload two images (e.g., two paintings or aerial photos).
 
