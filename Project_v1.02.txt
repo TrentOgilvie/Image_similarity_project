@@ -1,0 +1,175 @@
+# Install Required Libraries (if needed)
+!pip install tensorflow scikit-image matplotlib opencv-python-headless
+
+import numpy as np
+import cv2
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate, Dense, Flatten, Lambda
+import tensorflow.keras.backend as K
+from tensorflow.keras.applications import VGG16
+import matplotlib.pyplot as plt
+from skimage import exposure
+from google.colab import files
+import os
+
+def preprocess_image(image_path, size=(256, 256)):
+    """
+    Preprocess the input image: resizing and normalization.
+    """
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # Convert to RGB
+    image = cv2.resize(image, size) # Resize to model input size
+    image = image / 255.0 # Normalize pixel values
+    return image
+
+def unet_model(input_shape=(256, 256, 3)):
+    """
+    Original U-Net architecture for mask prediction.
+    """
+    inputs = Input(shape=input_shape)
+
+    # Encoder
+    c1 = Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
+    c1 = Conv2D(64, (3, 3), activation='relu', padding='same')(c1)
+    p1 = MaxPooling2D((2, 2))(c1)
+
+    c2 = Conv2D(128, (3, 3), activation='relu', padding='same')(p1)
+    c2 = Conv2D(128, (3, 3), activation='relu', padding='same')(c2)
+    p2 = MaxPooling2D((2, 2))(c2)
+
+    # Bottleneck
+    c3 = Conv2D(256, (3, 3), activation='relu', padding='same')(p2)
+    c3 = Conv2D(256, (3, 3), activation='relu', padding='same')(c3)
+
+    # Decoder
+    u1 = UpSampling2D((2, 2))(c3)
+    u1 = concatenate([u1, c2])
+    c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(u1)
+    c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(c4)
+
+    u2 = UpSampling2D((2, 2))(c4)
+    u2 = concatenate([u2, c1])
+    c5 = Conv2D(64, (3, 3), activation='relu', padding='same')(u2)
+    c5 = Conv2D(64, (3, 3), activation='relu', padding='same')(c5)
+
+    outputs = Conv2D(1, (1, 1), activation='sigmoid')(c5)
+
+    model = Model(inputs, outputs)
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+def siamese_network(input_shape=(256, 256, 3)):
+    """
+    Siamese network for measuring image similarity.
+    """
+    def create_base_network(input_shape):
+        """Base network to be shared (equals to feature extraction)."""
+        input = Input(shape=input_shape)
+        x = Conv2D(64, (3, 3), activation='relu', padding='same')(input)
+        x = MaxPooling2D((2, 2))(x)
+        x = Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+        x = MaxPooling2D((2, 2))(x)
+        x = Conv2D(256, (3, 3), activation='relu', padding='same')(x)
+        x = Flatten()(x)
+        x = Dense(512, activation='relu')(x)
+        x = Dense(128, activation='relu')(x)
+        return Model(input, x)
+
+    base_network = create_base_network(input_shape)
+    input_a = Input(shape=input_shape)
+    input_b = Input(shape=input_shape)
+
+    # Get encodings for both images
+    processed_a = base_network(input_a)
+    processed_b = base_network(input_b)
+
+    # Calculate similarity score
+    L1_distance = Lambda(lambda x: K.abs(x[0] - x[1]))([processed_a, processed_b])
+    similarity = Dense(1, activation='sigmoid')(L1_distance)
+
+    model = Model([input_a, input_b], similarity)
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
+
+# File Uploads
+print("Please upload the two images (before and after).")
+uploaded_files = files.upload()
+
+# Save Uploaded Files
+image_paths = list(uploaded_files.keys())
+if len(image_paths) != 2:
+    raise ValueError("Please upload exactly two images: one for 'before' and one for 'after'.")
+
+# Preprocess Images
+image1 = preprocess_image(image_paths[0])
+image2 = preprocess_image(image_paths[1])
+
+# Create both models
+unet = unet_model()
+siamese = siamese_network()
+
+# Simulated Training Data
+# For U-Net
+X_train_unet = np.random.rand(10, 256, 256, 3)
+Y_train_unet = np.random.randint(0, 2, (10, 256, 256, 1))
+
+# For Siamese Network (pairs of similar and dissimilar images)
+num_pairs = 10
+X1_train_siamese = np.random.rand(num_pairs, 256, 256, 3)
+X2_train_siamese = np.random.rand(num_pairs, 256, 256, 3)
+
+# 1 for similar pairs, 0 for dissimilar pairs
+Y_train_siamese = np.random.randint(0, 2, (num_pairs, 1))
+
+# Train both models
+print("Training U-Net...")
+unet.fit(X_train_unet, Y_train_unet, epochs=5, batch_size=2, verbose=1)
+
+print("\nTraining Siamese Network...")
+siamese.fit(
+    [X1_train_siamese, X2_train_siamese],
+    Y_train_siamese,
+    epochs=5,
+    batch_size=2,
+    verbose=1
+)
+
+# Get predictions from both models
+# U-Net mask prediction
+predicted_mask = unet.predict(np.expand_dims(image1, axis=0))[0, :, :, 0]
+
+# Siamese similarity score
+similarity_score = siamese.predict([
+    np.expand_dims(image1, axis=0),
+    np.expand_dims(image2, axis=0)
+])[0][0]
+
+# Simple difference (for comparison)
+diff = np.abs(image1 - image2)
+diff = (diff - diff.min()) / (diff.max() - diff.min())
+
+# Visualize Results
+plt.figure(figsize=(15, 5))
+
+plt.subplot(1, 4, 1)
+plt.title("Image Before")
+plt.imshow(image1)
+plt.axis('off')
+
+plt.subplot(1, 4, 2)
+plt.title("Image After")
+plt.imshow(image2)
+plt.axis('off')
+
+plt.subplot(1, 4, 3)
+plt.title("U-Net Predicted Mask")
+plt.imshow(predicted_mask, cmap='hot')
+plt.axis('off')
+
+plt.subplot(1, 4, 4)
+plt.title("Simple Difference\nSiamese Similarity: {similarity_score:.2f}")
+plt.imshow(diff, cmap='gray')
+plt.axis('off')
+
+plt.tight_layout()
+plt.show()

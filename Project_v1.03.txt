@@ -1,0 +1,147 @@
+import numpy as np
+import cv2
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dense, Flatten, Lambda, BatchNormalization, concatenate
+import tensorflow.keras.backend as K
+from tensorflow.keras.applications import VGG16
+import matplotlib.pyplot as plt
+from google.colab import files
+import os
+
+def preprocess_image(image_path, size=(256, 256)):
+    """
+    Preprocess the input image: resizing and normalization.
+    """
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # Convert to RGB
+    image = cv2.resize(image, size) # Resize to model input size
+    image = image / 255.0 # Normalize pixel values
+    return image
+
+def generate_training_data(num_pairs=1000, size=(256, 256)):
+    """
+    Generate more realistic training data with varying degrees of difference.
+    """
+    X1 = []
+    X2 = []
+    Y = []
+    for i in range(num_pairs):
+        # Create base image
+        base_img = np.random.rand(size[0], size[1], 3)
+        if i % 2 == 0:
+            # Similar pair - apply small random modifications
+            noise = np.random.normal(0, 0.02, size=(size[0], size[1], 3)) # Reduced noise for more sensitivity
+            modified_img = np.clip(base_img + noise, 0, 1)
+            similarity = np.random.uniform(0.8, 1.0) # Narrower range for similar pairs
+        else:
+            # Different pair - create substantially different image
+            modified_img = np.random.rand(size[0], size[1], 3)
+            similarity = np.random.uniform(0.0, 0.2) # Narrower range for different pairs
+        X1.append(base_img)
+        X2.append(modified_img)
+        Y.append(similarity)
+    return np.array(X1), np.array(X2), np.array(Y)
+
+def siamese_network(input_shape=(256, 256, 3)):
+    """
+    Modified Siamese network with improved similarity detection.
+    """
+    def create_base_network(input_shape):
+        base_model = VGG16(weights='imagenet', include_top=False, input_shape=input_shape)
+        # Unfreeze more layers for better feature extraction
+        for layer in base_model.layers[-12:]: # Unfreeze more layers
+            layer.trainable = True
+        x = base_model.output
+        x = Conv2D(512, (3, 3), activation='relu', padding='same')(x)
+        x = BatchNormalization()(x)
+        x = MaxPooling2D((2, 2))(x)
+        x = Flatten()(x)
+        x = Dense(1024, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dense(512, activation='relu')(x)
+        return Model(base_model.input, x)
+
+    base_network = create_base_network(input_shape)
+    input_a = Input(shape=input_shape)
+    input_b = Input(shape=input_shape)
+    processed_a = base_network(input_a)
+    processed_b = base_network(input_b)
+
+    def cosine_similarity(vects):
+        x, y = vects
+        x = K.l2_normalize(x, axis=-1)
+        y = K.l2_normalize(y, axis=-1)
+        return K.sum(x * y, axis=-1, keepdims=True)
+    similarity = Lambda(cosine_similarity)([processed_a, processed_b])
+    model = Model([input_a, input_b], similarity)
+    model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+    return model
+
+# File Uploads
+print("Please upload the two images (before and after).")
+uploaded_files = files.upload()
+
+# Save Uploaded Files
+image_paths = list(uploaded_files.keys())
+if len(image_paths) != 2:
+    raise ValueError("Please upload exactly two images: one for 'before' and one for 'after'.")
+
+# Preprocess Images
+image1 = preprocess_image(image_paths[0])
+image2 = preprocess_image(image_paths[1])
+
+# Create the Siamese network
+siamese = siamese_network()
+
+# Generate better training data
+print("\nGenerating training data...")
+X1_train, X2_train, Y_train = generate_training_data(num_pairs=1000)
+
+# Train the network
+print("\nTraining Siamese Network...")
+siamese.fit(
+    [X1_train, X2_train],
+    Y_train,
+    epochs=20, # Increased number of epochs for better training
+    batch_size=32,
+    validation_split=0.2,
+    verbose=1
+)
+
+# Calculate similarity between the two uploaded images
+similarity_score = siamese.predict([
+    np.expand_dims(image1, axis=0),
+    np.expand_dims(image2, axis=0)
+])[0][0]
+
+# Calculate pixel-wise difference for visualization
+diff = np.abs(image1 - image2)
+diff = (diff - diff.min()) / (diff.max() - diff.min())
+
+# Display the results
+plt.figure(figsize=(12, 4))
+
+plt.subplot(1, 3, 1)
+plt.title("Image Before")
+plt.imshow(image1)
+plt.axis('off')
+
+plt.subplot(1, 3, 2)
+plt.title("Image After")
+plt.imshow(image2)
+plt.axis('off')
+
+plt.subplot(1, 3, 3)
+plt.title("Difference Map\nSimilarity Score: {similarity_score:.3f}")
+plt.imshow(diff, cmap='hot')
+plt.colorbar(label='Difference Magnitude')
+plt.axis('off')
+
+plt.tight_layout()
+plt.show()
+
+print("\nSimilarity Score: {similarity_score:.3f}")
+print("Interpretation:")
+print("0.0-0.2: Very Different")
+print("0.2-0.8: Moderately Similar")
+print("0.8-1.0: Very Similar")
