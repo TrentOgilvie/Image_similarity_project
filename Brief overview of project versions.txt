@@ -1,0 +1,185 @@
+Project_v1.0.txt
+Description: This is the initial version of the project, which focuses on using a U-Net architecture to detect changes between two images. The U-Net model is trained on randomly generated data and predicts a binary mask indicating the differences between the "before" and "after" images.
+
+Key Features:
+
+Preprocesses images by resizing and normalizing them.
+
+Uses a simple U-Net model with an encoder-decoder structure.
+
+Generates a predicted change mask based on the absolute difference between the two images.
+
+Visualizes the original images, the absolute difference, and the predicted mask.
+
+Limitations:
+
+The model is trained on random data, which is not realistic.
+
+The U-Net is not specifically designed for image similarity tasks.
+
+No similarity score is provided; only a binary mask is generated.
+
+Project_v1.01.txt
+Description: This version introduces a Siamese network with a U-Net decoder to output both a similarity score and a difference mask. The Siamese network is designed to compare two images and predict how similar they are, while the U-Net decoder generates a mask highlighting the differences.
+
+Key Changes:
+
+Added a Siamese network for image similarity comparison.
+
+Combined the Siamese network with a U-Net decoder to produce a difference mask.
+
+Outputs both a similarity score (between 0 and 1) and a difference mask.
+
+Uses a shared base network for feature extraction.
+
+Improvements:
+
+The model now provides a similarity score, which is more informative than just a binary mask.
+
+The difference mask is generated using a U-Net, which is more sophisticated than a simple absolute difference.
+
+Limitations:
+
+Still uses random data for training, which is not realistic.
+
+The model is more complex, which may increase training time and resource usage.
+
+Project_v1.02.txt
+Description: This version separates the U-Net and Siamese network into two distinct models. The U-Net is used for mask prediction, while the Siamese network is used for similarity scoring. Both models are trained on random data, and their outputs are visualized together.
+
+Key Changes:
+
+Separated the U-Net and Siamese network into two independent models.
+
+The U-Net predicts a mask, while the Siamese network predicts a similarity score.
+
+Both models are trained on random data, and their outputs are displayed side by side.
+
+Improvements:
+
+The separation of tasks (mask prediction vs. similarity scoring) makes the code more modular.
+
+Visualizes both the U-Net mask and the Siamese similarity score.
+
+Limitations:
+
+Still uses random data for training, which limits the model's effectiveness.
+
+The Siamese network uses a simple architecture, which may not capture complex image similarities.
+
+Project_v1.03.txt
+Description: This version focuses on improving the Siamese network by using a pre-trained VGG16 model as the base network for feature extraction. The model is trained on synthetic data with varying degrees of similarity.
+
+Key Changes:
+
+Replaced the simple base network with a pre-trained VGG16 model for feature extraction.
+
+Fine-tuned the last 12 layers of VGG16 to adapt it to the similarity task.
+
+Generated synthetic training data with varying degrees of similarity (similar and dissimilar pairs).
+
+Outputs a similarity score and a simple difference map.
+
+Improvements:
+
+The use of VGG16 improves feature extraction, leading to better similarity detection.
+
+Synthetic training data is more realistic than random data.
+
+The model now provides a more meaningful similarity score.
+
+Limitations:
+
+The difference map is still based on simple pixel-wise differences, which may not capture high-level differences.
+
+The model is more complex and requires more computational resources.
+
+Project_v1.04.txt
+Description: This version builds on the previous iteration by adding feature maps from the VGG16 model to generate a more detailed difference map. The model is trained on synthetic data and outputs a similarity score and a feature-based difference map.
+
+Key Changes:
+
+Added feature maps from VGG16 to generate a more detailed difference map.
+
+The difference map is now based on feature-level differences rather than pixel-wise differences.
+
+Improved the training data generation process to create more realistic synthetic pairs.
+
+Improvements:
+
+The difference map is now more informative, as it captures high-level differences between images.
+
+The model is better at detecting semantic differences between images.
+
+Limitations:
+
+The model is still trained on synthetic data, which may not fully represent real-world scenarios.
+
+The difference map generation process is more computationally intensive.
+
+Project_v1.04.1.txt
+Description: This version optimizes the previous iteration by reducing the image size and number of training pairs to save memory and computational resources. It also processes data in smaller batches to avoid memory issues.
+
+Key Changes:
+
+Reduced the image size from 256x256 to 224x224.
+
+Reduced the number of training pairs from 1000 to 500.
+
+Processed training data in smaller batches to save memory.
+
+Simplified the base network architecture to reduce memory usage.
+
+Improvements:
+
+The model is more memory-efficient and can run on systems with limited resources.
+
+The training process is faster due to smaller batch sizes and fewer training pairs.
+
+Limitations:
+
+The smaller image size and reduced training data may affect the model's accuracy.
+
+The difference map is less detailed due to the smaller image size.
+
+Project_v1.04.2.txt
+Description: This is the final version of the project, which combines all the improvements from previous iterations. It uses a pre-trained VGG16 model for feature extraction, generates a detailed difference map based on multiple feature levels, and provides a similarity score. The model is trained on synthetic data and includes a comprehensive visualization of the results.
+
+Key Changes:
+
+Added a detailed difference map generation function that combines low, mid, and high-level features from VGG16.
+
+Improved the visualization of results, including a heatmap and overlay of differences on the original image.
+
+Added interpretation guidelines for the similarity score and difference map.
+
+Improvements:
+
+The difference map is now more comprehensive, capturing differences at multiple levels of abstraction.
+
+The visualization is more informative, with multiple views of the differences between images.
+
+The model provides clear interpretation guidelines for the similarity score and difference map.
+
+Limitations:
+
+The model is still trained on synthetic data, which may not fully represent real-world scenarios.
+
+The detailed difference map generation process is computationally intensive.
+
+Summary of Changes Between Iterations:
+v1.0: Initial version with a simple U-Net for mask prediction.
+
+v1.01: Introduced a Siamese network with a U-Net decoder for both similarity scoring and mask prediction.
+
+v1.02: Separated the U-Net and Siamese network into two distinct models.
+
+v1.03: Replaced the base network with a pre-trained VGG16 model and improved the training data.
+
+v1.04: Added feature maps from VGG16 to generate a more detailed difference map.
+
+v1.04.1: Optimized the model for memory efficiency by reducing image size and training data.
+
+v1.04.2: Final version with comprehensive difference map generation and improved visualization.
+
+Each iteration builds on the previous one, adding new features, improving the model's accuracy, and optimizing for performance. The final version (v1.04.2) is the most sophisticated, with detailed difference maps, improved visualization, and clear interpretation guidelines.
