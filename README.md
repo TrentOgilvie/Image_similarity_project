@@ -51,41 +51,6 @@ siamese_network.py: Python script for building and training the Siamese network.
 
 preprocess.py: Script for image preprocessing.
 
-Data:
-
-Synthetic training data generation scripts.
-
-Documentation:
-
-README.md: Instructions for setting up and running the project.
-
-requirements.txt: List of Python dependencies.
-
-How to Use:
-Google Colab:
-
-Open the notebook in Colab using the badge below:
-Open In Colab
-
-Upload your images and run the cells to compare them.
-
-Local Setup:
-
-Clone the repository:
-
-bash
-Copy
-git clone https://github.com/your-username/repository-name.git
-Install dependencies:
-
-bash
-Copy
-pip install -r requirements.txt
-Run the Python script:
-
-bash
-Copy
-python siamese_network.py
 Example Workflow:
 Upload two images (e.g., two paintings or aerial photos).
 
@@ -94,13 +59,6 @@ Preprocess the images and generate feature maps.
 Compute the similarity score and generate a difference map.
 
 Visualize the results, including the difference heatmap and overlay.
-
-Potential Extensions:
-Art History: Integrate with art databases to automate style comparisons.
-
-Environmental History: Add support for time-series analysis of satellite imagery.
-
-Custom Training: Fine-tune the model on domain-specific datasets for improved accuracy.
 
 Contributions:
 Contributions are welcome! If you have ideas for improving the project or extending its applications, feel free to open an issue or submit a pull request.
